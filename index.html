@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>写真加工ツール</title>
+  <style>
+    :root {
+      --bg: #f4f5f7;
+      --card: #ffffff;
+      --ink: #1c1c1c;
+      --muted: #5c6570;
+      --line: #9aa1ab;
+      --accent: #1f3a5f;
+      --danger: #9b2c2c;
+      --shadow: 0 8px 24px rgba(28, 28, 28, 0.06);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+      line-height: 1.6;
+    }
+
+    main {
+      width: min(720px, calc(100% - 32px));
+      margin: 40px auto 64px;
+      display: grid;
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 28px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+
+    .lead {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .panel {
+      margin-top: 22px;
+      border: 1.5px dashed var(--line);
+      border-radius: 6px;
+      padding: 28px 20px 24px;
+      display: grid;
+      justify-items: center;
+      gap: 16px;
+      text-align: center;
+      background: #fafbfc;
+    }
+
+    .panel.dragover {
+      border-color: var(--accent);
+      background: #f3f7fb;
+    }
+
+    .size {
+      margin: 0;
+      font-size: 16px;
+      letter-spacing: 0.08em;
+    }
+
+    .hint {
+      margin: -8px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .picked {
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .names {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      width: min(100%, 420px);
+      max-height: 140px;
+      overflow: auto;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .names li {
+      padding: 2px 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid var(--ink);
+      background: #fff;
+      color: var(--ink);
+      border-radius: 8px;
+      padding: 10px 18px;
+      font: inherit;
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    button:hover:not(:disabled) { background: #f3f4f6; }
+
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      min-width: 180px;
+    }
+
+    button.primary:hover:not(:disabled) { background: #17304f; }
+
+    .error {
+      margin: 14px 0 0;
+      color: var(--danger);
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .done {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .count {
+      margin: 14px 0 0;
+      font-size: 16px;
+    }
+
+    .note {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .thumbs {
+      margin: 18px 0 0;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+      gap: 10px;
+    }
+
+    .thumbs figure {
+      margin: 0;
+    }
+
+    .thumbs img {
+      width: 100%;
+      height: auto;
+      max-height: 160px;
+      object-fit: contain;
+      border-radius: 6px;
+      background: #eee;
+      display: block;
+    }
+
+    .thumbs figcaption {
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .actions {
+      margin-top: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="card">
+      <h1>写真加工ツール</h1>
+      <p class="lead">写真の内容はそのまま、サイズだけを変えます。長辺を500px以内、ファイルを100KB未満にします。処理はこのブラウザ内で行われ、画像はサーバーへ送信されません。</p>
+
+      <div class="panel" id="dropzone">
+        <button type="button" id="pick">写真を選択</button>
+        <input id="files" class="hidden" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" multiple>
+        <p class="picked" id="picked">写真が選択されていません</p>
+        <ul class="names hidden" id="names"></ul>
+        <p class="size">長辺 500px以内</p>
+        <p class="hint">100KB未満　・　内容・形・鮮明さはそのまま</p>
+        <button type="button" class="primary" id="start" disabled>加工開始</button>
+      </div>
+      <p class="error hidden" id="error"></p>
+    </section>
+
+    <section class="card hidden" id="result">
+      <p class="done">処理が完了しました</p>
+      <p class="count" id="count">処理枚数：0枚</p>
+      <p class="note hidden" id="skipped"></p>
+      <div class="thumbs" id="thumbs"></div>
+      <div class="actions">
+        <button type="button" class="primary" id="download">加工済み画像をダウンロード</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const SIZE = 500;
+    const LIMIT = 100 * 1024;
+    const ACCEPT = [".jpg", ".jpeg", ".png"];
+
+    const pickBtn = document.getElementById("pick");
+    const fileInput = document.getElementById("files");
+    const dropzone = document.getElementById("dropzone");
+    const picked = document.getElementById("picked");
+    const names = document.getElementById("names");
+    const startBtn = document.getElementById("start");
+    const errorEl = document.getElementById("error");
+    const resultEl = document.getElementById("result");
+    const countEl = document.getElementById("count");
+    const skippedEl = document.getElementById("skipped");
+    const thumbsEl = document.getElementById("thumbs");
+    const downloadBtn = document.getElementById("download");
+
+    let selected = [];
+    let outputs = [];
+    let previewUrls = [];
+
+    pickBtn.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => {
+      setFiles(Array.from(fileInput.files || []));
+      fileInput.value = "";
+    });
+
+    ["dragenter", "dragover"].forEach((type) => {
+      dropzone.addEventListener(type, (event) => {
+        event.preventDefault();
+        dropzone.classList.add("dragover");
+      });
+    });
+    ["dragleave", "drop"].forEach((type) => {
+      dropzone.addEventListener(type, (event) => {
+        event.preventDefault();
+        dropzone.classList.remove("dragover");
+      });
+    });
+    dropzone.addEventListener("drop", (event) => {
+      setFiles(Array.from(event.dataTransfer.files || []));
+    });
+
+    startBtn.addEventListener("click", () => {
+      processAll().catch((error) => showError(error.message || "処理に失敗しました。"));
+    });
+    downloadBtn.addEventListener("click", downloadAll);
+
+    function isImage(file) {
+      const name = file.name.toLowerCase();
+      return ACCEPT.some((ext) => name.endsWith(ext));
+    }
+
+    function setFiles(files) {
+      const images = files.filter(isImage);
+      const rejected = files.length - images.length;
+      selected = images;
+      hideError();
+      renderSelection(rejected);
+    }
+
+    function renderSelection(rejected) {
+      names.replaceChildren();
+      if (selected.length === 0) {
+        picked.textContent = rejected
+          ? "JPG / JPEG / PNG を選択してください"
+          : "写真が選択されていません";
+        names.classList.add("hidden");
+        startBtn.disabled = true;
+        return;
+      }
+      picked.textContent = "選択中：" + selected.length + "枚";
+      selected.forEach((file) => {
+        const li = document.createElement("li");
+        li.textContent = file.name;
+        names.appendChild(li);
+      });
+      names.classList.remove("hidden");
+      startBtn.disabled = false;
+      if (rejected) showError("JPG / JPEG / PNG 以外のファイルは除外しました。");
+    }
+
+    function showError(message) {
+      errorEl.textContent = message;
+      errorEl.classList.remove("hidden");
+    }
+
+    function hideError() {
+      errorEl.textContent = "";
+      errorEl.classList.add("hidden");
+    }
+
+    async function processAll() {
+      if (selected.length === 0) {
+        showError("写真を選択してください。");
+        return;
+      }
+      hideError();
+      startBtn.disabled = true;
+      pickBtn.disabled = true;
+      clearPreviews();
+      outputs = [];
+      const used = new Set();
+      let failed = 0;
+
+      for (let i = 0; i < selected.length; i++) {
+        startBtn.textContent = "処理中… " + (i + 1) + " / " + selected.length;
+        const file = selected[i];
+        try {
+          const result = await resizeUnderLimit(file);
+          outputs.push({ name: outputName(file.name, result.ext, used), blob: result.blob });
+        } catch (error) {
+          failed += 1;
+        }
+      }
+
+      startBtn.textContent = "加工開始";
+      startBtn.disabled = selected.length === 0;
+      pickBtn.disabled = false;
+      showResult(failed);
+    }
+
+    function showResult(failed) {
+      countEl.textContent = "処理枚数：" + outputs.length + "枚";
+      if (failed > 0) {
+        skippedEl.textContent = "読み込めなかった写真：" + failed + "枚";
+        skippedEl.classList.remove("hidden");
+      } else {
+        skippedEl.classList.add("hidden");
+      }
+      thumbsEl.replaceChildren();
+      outputs.forEach((item) => {
+        const url = URL.createObjectURL(item.blob);
+        previewUrls.push(url);
+        const figure = document.createElement("figure");
+        const img = document.createElement("img");
+        img.src = url;
+        img.alt = item.name;
+        const caption = document.createElement("figcaption");
+        caption.textContent = item.name;
+        figure.append(img, caption);
+        thumbsEl.appendChild(figure);
+      });
+      downloadBtn.disabled = outputs.length === 0;
+      resultEl.classList.remove("hidden");
+      resultEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function clearPreviews() {
+      previewUrls.forEach((url) => URL.revokeObjectURL(url));
+      previewUrls = [];
+      thumbsEl.replaceChildren();
+    }
+
+    async function resizeUnderLimit(file) {
+      const image = await loadImage(file);
+      try {
+        const sw = image.width;
+        const sh = image.height;
+        if (sw <= SIZE && sh <= SIZE && file.size <= LIMIT) {
+          const ext = (file.name.match(/\.([^.]+)$/) || [, "jpg"])[1].toLowerCase();
+          return { blob: file, ext };
+        }
+
+        const scale = Math.min(SIZE / sw, SIZE / sh, 1);
+        const dw = Math.max(1, Math.round(sw * scale));
+        const dh = Math.max(1, Math.round(sh * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = dw;
+        canvas.height = dh;
+        const ctx = canvas.getContext("2d");
+        ctx.imageSmoothingEnabled = scale < 1;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(scale < 1 ? downscale(image, dw, dh) : image, 0, 0, dw, dh);
+        return { blob: await encodeUnderLimit(canvas), ext: "jpg" };
+      } finally {
+        if (typeof image.close === "function") image.close();
+      }
+    }
+
+    async function encodeUnderLimit(canvas) {
+      let blob = await canvasToBlob(canvas, 0.92);
+      if (blob.size <= LIMIT) return blob;
+
+      let low = 0.5;
+      let high = 0.92;
+      let best = blob;
+      for (let i = 0; i < 6; i++) {
+        const quality = (low + high) / 2;
+        blob = await canvasToBlob(canvas, quality);
+        if (blob.size <= LIMIT) {
+          best = blob;
+          low = quality;
+        } else {
+          high = quality;
+        }
+      }
+      if (best.size <= LIMIT) return best;
+
+      low = 0.2;
+      high = 0.5;
+      for (let i = 0; i < 5; i++) {
+        const quality = (low + high) / 2;
+        blob = await canvasToBlob(canvas, quality);
+        if (blob.size <= LIMIT) {
+          best = blob;
+          low = quality;
+        } else {
+          high = quality;
+        }
+      }
+      return best.size <= LIMIT ? best : canvasToBlob(canvas, 0.2);
+    }
+
+    function downscale(image, dw, dh) {
+      let src = image;
+      let width = image.width;
+      let height = image.height;
+      if (width <= dw && height <= dh) return src;
+
+      while (width * 0.5 >= dw && height * 0.5 >= dh) {
+        width = Math.round(width * 0.5);
+        height = Math.round(height * 0.5);
+        src = blit(src, width, height);
+      }
+      if (width !== dw || height !== dh) src = blit(src, dw, dh);
+      return src;
+    }
+
+    function blit(source, width, height) {
+      const step = document.createElement("canvas");
+      step.width = width;
+      step.height = height;
+      const ctx = step.getContext("2d");
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(source, 0, 0, width, height);
+      return step;
+    }
+
+    function canvasToBlob(canvas, quality) {
+      return new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error("JPEGの作成に失敗しました。"));
+        }, "image/jpeg", quality);
+      });
+    }
+
+    function loadImage(file) {
+      if (typeof createImageBitmap === "function") {
+        return createImageBitmap(file, { imageOrientation: "from-image" });
+      }
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          resolve(img);
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error("画像を読み込めませんでした。"));
+        };
+        img.src = url;
+      });
+    }
+
+    function outputName(fileName, ext, used) {
+      const raw = fileName.replace(/\.[^.]+$/, "") || "image";
+      const base = raw.replace(/[\\/:*?"<>|]/g, "_");
+      let name = base + "." + ext;
+      let n = 2;
+      while (used.has(name)) {
+        name = base + "_" + n + "." + ext;
+        n += 1;
+      }
+      used.add(name);
+      return name;
+    }
+
+    async function downloadAll() {
+      if (outputs.length === 0) return;
+      if (outputs.length === 1) {
+        saveBlob(outputs[0].blob, outputs[0].name);
+        return;
+      }
+      const zip = await makeZip(outputs);
+      saveBlob(zip, "加工済み.zip");
+    }
+
+    function saveBlob(blob, name) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function crc32(bytes) {
+      let c = ~0;
+      for (let i = 0; i < bytes.length; i++) {
+        c ^= bytes[i];
+        for (let k = 0; k < 8; k++) {
+          c = (c >>> 1) ^ (0xedb88320 & -(c & 1));
+        }
+      }
+      return ~c >>> 0;
+    }
+
+    function u16(n) {
+      return [n & 255, (n >> 8) & 255];
+    }
+
+    function u32(n) {
+      return [n & 255, (n >> 8) & 255, (n >> 16) & 255, (n >> 24) & 255];
+    }
+
+    async function makeZip(files) {
+      const now = new Date();
+      const time = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+      const date = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+      const localParts = [];
+      const centralParts = [];
+      let offset = 0;
+
+      for (const file of files) {
+        const data = new Uint8Array(await file.blob.arrayBuffer());
+        const nameBytes = new TextEncoder().encode(file.name);
+        const crc = crc32(data);
+        const local = new Uint8Array([
+          ...u32(0x04034b50),
+          ...u16(20),
+          ...u16(0x0800),
+          ...u16(0),
+          ...u16(time),
+          ...u16(date),
+          ...u32(crc),
+          ...u32(data.length),
+          ...u32(data.length),
+          ...u16(nameBytes.length),
+          ...u16(0)
+        ]);
+        localParts.push(local, nameBytes, data);
+
+        const central = new Uint8Array([
+          ...u32(0x02014b50),
+          ...u16(20),
+          ...u16(20),
+          ...u16(0x0800),
+          ...u16(0),
+          ...u16(time),
+          ...u16(date),
+          ...u32(crc),
+          ...u32(data.length),
+          ...u32(data.length),
+          ...u16(nameBytes.length),
+          ...u16(0),
+          ...u16(0),
+          ...u16(0),
+          ...u16(0),
+          ...u32(0),
+          ...u32(offset)
+        ]);
+        centralParts.push(central, nameBytes);
+        offset += local.length + nameBytes.length + data.length;
+      }
+
+      const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+      const end = new Uint8Array([
+        ...u32(0x06054b50),
+        ...u16(0),
+        ...u16(0),
+        ...u16(files.length),
+        ...u16(files.length),
+        ...u32(centralSize),
+        ...u32(offset),
+        ...u16(0)
+      ]);
+      return new Blob([...localParts, ...centralParts, end], { type: "application/zip" });
+    }
+  </script>
+</body>
+</html>
